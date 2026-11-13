@@ -6,7 +6,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from conftest import PNG, tree_contents
+from conftest import PNG, PNG_BLUE, nacp, tree_contents, write
 import pytest
 from PySide6.QtCore import QMimeData, QPoint, QPointF, Qt, QUrl
 from PySide6.QtGui import QDropEvent
@@ -219,6 +219,98 @@ def test_pack_end_to_end_with_metadata(app, window: MainWindow, dump: Path, dial
     # The output now exists, so the form must not offer to write it again.
     assert not page.pack_button.isEnabled()
     assert "already exists" in page.message.text()
+
+
+def add_control(folder: Path, name: str = "Test Game", version: str = "1.2.3") -> None:
+    write(folder / "control.nacp", nacp({0: (name, "Acme"), 2: ("テストゲーム", "アクメ")}, version))
+    write(folder / "icon_AmericanEnglish.dat", PNG)
+    write(folder / "icon_Japanese.dat", PNG_BLUE)
+
+
+def test_control_data_in_the_dump_fills_the_form_and_is_packed(app, window: MainWindow, dump: Path,
+                                                               dialogs: Dialogs) -> None:
+    add_control(dump / "base/control")
+    page = window.pack_page
+    page.set_source(str(dump))
+    assert (page.name.text(), page.publisher.text(), page.display_version.text()) == \
+        ("Test Game", "Acme", "1.2.3")
+    assert page.icon.path() == str(dump / "base/control/icon_AmericanEnglish.dat")
+    assert page.localized.snapshot() == \
+        [("ja", "テストゲーム", str(dump / "base/control/icon_Japanese.dat"))]
+    assert "base" in page.control_note.text() and page.control_note.isVisibleTo(page)
+
+    out = pack_through_ui(app, window, dump)
+    assert not dialogs.errors
+    base = core.open_container(str(out)).packages[0]
+    assert (base.name, base.publisher, base.display_version) == ("Test Game", "Acme", "1.2.3")
+    assert base.icon == PNG
+    assert base.titles == {"ja": "テストゲーム"} and base.icons == {"ja": PNG_BLUE}
+
+
+def test_control_data_keeps_what_the_user_typed(window: MainWindow, dump: Path, tmp_path: Path) -> None:
+    add_control(dump / "base/control")
+    other = tmp_path / "other"
+    (other / "romfs").mkdir(parents=True)
+    (other / "romfs/data.bin").write_bytes(b"data")
+    page = window.pack_page
+    page.publisher.setText("My Label")
+    page.set_source(str(dump))
+    assert page.name.text() == "Test Game"
+    assert page.publisher.text() == "My Label"
+
+    # A dump without control data takes back only what was filled in automatically.
+    page.name.setText("Renamed")
+    page.set_source(str(other))
+    assert (page.name.text(), page.publisher.text(), page.display_version.text()) == \
+        ("Renamed", "My Label", "")
+    assert page.icon.path() == "" and page.localized.snapshot() == []
+    assert not page.control_note.isVisibleTo(page)
+
+
+def test_title_id_typing_does_not_refill(window: MainWindow, dump: Path) -> None:
+    add_control(dump / "base/control")
+    page = window.pack_page
+    page.set_source(str(dump))
+    page.name.clear()
+    page.title_id.setText("0100AAAABBBB0000")
+    assert page.name.text() == ""
+
+
+def test_update_only_dump_is_not_filled(window: MainWindow, tmp_path: Path) -> None:
+    source = tmp_path / "updates_only"
+    write(source / "updates/65536/romfs/patch.bin", b"patch")
+    add_control(source / "updates/65536/control")
+    page = window.pack_page
+    page.set_source(str(source))
+    assert page.name.text() == "" and page.message.text() == ""
+
+
+def test_load_from_control_file_replaces_the_form(window: MainWindow, dump: Path, tmp_path: Path,
+                                                  dialogs: Dialogs, monkeypatch: pytest.MonkeyPatch) -> None:
+    add_control(tmp_path / "picked", name="Picked Game", version="9.9")
+    chosen = str(tmp_path / "picked/control.nacp")
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", staticmethod(lambda *_a, **_k: (chosen, "")))
+    page = window.pack_page
+    page.set_source(str(dump))
+    page.name.setText("Typed")
+    page.load_control.click()
+    assert (page.name.text(), page.display_version.text()) == ("Picked Game", "9.9")
+    assert "picked" in page.control_note.text()
+    assert not dialogs.errors
+
+    (tmp_path / "bad.nacp").write_bytes(b"nope")
+    chosen = str(tmp_path / "bad.nacp")
+    page.load_control.click()
+    assert "isn't control data" in dialogs.errors[0]
+    assert page.name.text() == "Picked Game"
+
+
+def test_unreadable_control_data_in_the_dump_is_explained(window: MainWindow, dump: Path) -> None:
+    write(dump / "base/control.nacp", b"broken")
+    page = window.pack_page
+    page.set_source(str(dump))
+    assert "couldn't use it" in page.control_note.text()
+    assert page.name.text() == "" and page.pack_button.isEnabled()
 
 
 def test_cancel_pack(app, window: MainWindow, dump: Path, dialogs: Dialogs) -> None:
