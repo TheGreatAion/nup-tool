@@ -24,6 +24,8 @@ Once it's open, you can also drop a dump folder or a `.nup` file onto the window
 **Pack tab: dump folder to `.nup`**
 
 - Shows which packages it found before you commit to anything
+- Warns when a program in `exefs` is shorter than its header says, which is what an FTP copy in
+  text mode does, and asks before packing a damaged dump
 - Sets compression level, title, publisher, display version, icon, title ID override, and
   localized titles and icons
 - Split mode: one file each for the base, every update, and the DLC

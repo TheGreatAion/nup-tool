@@ -6,7 +6,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from conftest import PNG, tree_contents
+from conftest import PNG, nso_with_text, text_mode_copy, tree_contents, write
 import pytest
 from PySide6.QtCore import QMimeData, QPoint, QPointF, Qt, QUrl
 from PySide6.QtGui import QDropEvent
@@ -219,6 +219,31 @@ def test_pack_end_to_end_with_metadata(app, window: MainWindow, dump: Path, dial
     # The output now exists, so the form must not offer to write it again.
     assert not page.pack_button.isEnabled()
     assert "already exists" in page.message.text()
+
+
+def test_damaged_dump_warns_and_asks_before_packing(app, window: MainWindow, dump: Path,
+                                                    dialogs: Dialogs) -> None:
+    text = b"code\r\n" * 300
+    write(dump / "base/exefs/main", text_mode_copy(nso_with_text(text)))
+    write(dump / "base/exefs/sdk", text_mode_copy(nso_with_text(text)))
+    page = window.pack_page
+    page.set_source(str(dump))
+    assert "is 300 bytes shorter" in page.message.text()
+    assert "1 more program is too" in page.message.text()
+    assert page.pack_button.isEnabled()
+
+    dialogs.answer = QMessageBox.StandardButton.No
+    page.pack_button.click()
+    wait_idle(app, window)
+    assert "Pack it anyway?" in dialogs.questions[0]
+    assert not Path(page.output.text()).exists()
+
+    dialogs.answer = QMessageBox.StandardButton.Yes
+    page.pack_button.click()
+    wait_idle(app, window)
+    assert Path(page.output.text()).exists() and not dialogs.errors
+    # With the output now in the way, the damage is still reported.
+    assert "already exists" in page.message.text() and "damaged" in page.message.text()
 
 
 def test_cancel_pack(app, window: MainWindow, dump: Path, dialogs: Dialogs) -> None:

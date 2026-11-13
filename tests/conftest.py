@@ -45,6 +45,22 @@ def nso() -> bytes:
     return b"NSO0" + bytes(0x3C) + BUILD_ID + bytes(0x20)
 
 
+def nso_with_text(text: bytes, compressed: bool = False) -> bytes:
+    """An NSO whose text segment holds `text`, stored right after the 0x100 header."""
+    head = bytearray(0x100)
+    head[:4] = b"NSO0"
+    head[0x0C:0x10] = struct.pack("<I", 1 if compressed else 0)
+    head[0x10:0x1C] = struct.pack("<III", 0x100, 0, len(text) * (3 if compressed else 1))
+    head[0x40:0x60] = BUILD_ID
+    head[0x60:0x64] = struct.pack("<I", len(text))
+    return bytes(head) + text
+
+
+def text_mode_copy(data: bytes) -> bytes:
+    """What an FTP text-mode transfer does to a binary file on the way to Windows."""
+    return data.replace(b"\r\n", b"\n")
+
+
 def write(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)

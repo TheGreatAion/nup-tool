@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 import hashlib
 import os
 import re
+import struct
 import time
 from typing import Protocol
 
@@ -298,6 +299,51 @@ def preview_dump(source: str, title_id: str = "") -> list[PackageRow]:
     return [PackageRow(F.KIND_NAMES[p.kind], p.title_id, p.version,
                        os.path.relpath(p.src, source))
             for p in packages]
+
+
+_NSO_HEADER = 0x100
+
+
+def nso_missing_bytes(path: str) -> int:
+    """How many bytes an NSO program is short of the length its header gives. 0 if
+    it's complete, or if it isn't an NSO at all. A dump copied over FTP in text mode
+    loses a byte for every CR LF pair, so its programs come out short."""
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as fh:
+            head = fh.read(_NSO_HEADER)
+    except OSError:
+        return 0
+    if head[:4] != b"NSO0":
+        return 0
+    if len(head) < 0x70:
+        return _NSO_HEADER - len(head)
+    flags = struct.unpack_from("<I", head, 0x0C)[0]
+    needed = 0
+    for index, offset in enumerate((0x10, 0x20, 0x30)):  # text, rodata, data
+        file_offset, _memory_offset, size_in_memory = struct.unpack_from("<III", head, offset)
+        compressed = struct.unpack_from("<I", head, 0x60 + 4 * index)[0]
+        stored = compressed if flags & (1 << index) else size_in_memory
+        needed = max(needed, file_offset + stored)
+    return max(0, needed - size)
+
+
+def short_programs(source: str, folders: list[str]) -> list[tuple[str, int]]:
+    """Programs in the packages' exefs folders that are shorter than their headers
+    say, as (path relative to the dump, bytes missing)."""
+    found = []
+    for folder in folders:
+        exefs = os.path.join(source, folder, "exefs")
+        try:
+            names = sorted(os.listdir(exefs))
+        except OSError:
+            continue
+        for name in names:
+            path = os.path.join(exefs, name)
+            missing = nso_missing_bytes(path) if os.path.isfile(path) else 0
+            if missing:
+                found.append((os.path.relpath(path, source), missing))
+    return found
 
 
 def _outputs_for(output: str, packages: list[PackInput], split: bool) -> list[str]:

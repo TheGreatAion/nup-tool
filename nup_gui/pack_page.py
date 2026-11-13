@@ -6,9 +6,9 @@ import os
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QFormLayout, QFrame, QGroupBox,
-                               QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton,
-                               QScrollArea, QSpinBox, QTableWidget, QTableWidgetItem,
-                               QVBoxLayout, QWidget)
+                               QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox,
+                               QPushButton, QScrollArea, QSpinBox, QTableWidget,
+                               QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import core
 from .widgets import IconField, LocalizedEditor, PathField, muted_label
@@ -25,6 +25,7 @@ class PackPage(QWidget):
         self._output_touched = False
         self._rows: list[core.PackageRow] = []
         self._source_error = ""
+        self._short: list[tuple[str, int]] = []
 
         self.source = PathField("dir", "Choose or drop a dump folder")
         self.source.changed.connect(self._source_changed)
@@ -163,6 +164,7 @@ class PackPage(QWidget):
                 self._rows = core.preview_dump(source, title_id)
             except core.JobError as exc:
                 self._source_error = str(exc)
+        self._short = core.short_programs(source, [r.folder for r in self._rows]) if self._rows else []
         self._fill_table()
         if source and not self._output_touched:
             clean = os.path.normpath(source)
@@ -202,18 +204,33 @@ class PackPage(QWidget):
             return "The output folder doesn't exist."
         return self.localized.validation_error()
 
+    def _damage_text(self) -> str:
+        if not self._short:
+            return ""
+        path, missing = self._short[0]
+        more = len(self._short) - 1
+        others = f", and {more} more program{'s' if more > 1 else ''} {'are' if more > 1 else 'is'} too" \
+            if more else ""
+        return (f"This dump is damaged: {path} is {missing:,} bytes shorter than it should be"
+                f"{others}. That happens when a dump is copied over FTP in text mode. Copy the "
+                f"exefs folders again in binary mode (FileZilla: Transfer > Transfer type > "
+                f"Binary), or the game may not run.")
+
     def _warning(self) -> str:
         """Allowed, but the user should know."""
+        warnings = [self._damage_text()]
         has_meta = (any(e.text().strip() for e in (self.name, self.publisher, self.display_version))
                     or bool(self.icon.path()) or bool(self.localized.entries()))
         if has_meta and self._rows and not any(r.kind == "base" for r in self._rows):
-            return "This dump has no base package, so the metadata above won't be saved. " \
-                   "Pack it first, then add metadata with Edit metadata on the Browse tab."
-        return ""
+            warnings.append("This dump has no base package, so the metadata above won't be saved. "
+                            "Pack it first, then add metadata with Edit metadata on the Browse tab.")
+        return " ".join(w for w in warnings if w)
 
     def _validate(self) -> None:
         error = self._error()
-        self.message.setText(error or self._warning())
+        # Damage outranks everything else: it's the one problem a new name or field won't fix.
+        self.message.setText(" ".join(t for t in (error, self._damage_text()) if t)
+                             if error else self._warning())
         self.pack_button.setEnabled(
             not self._busy and not error and bool(self.source.text()) and bool(self._rows))
 
@@ -236,4 +253,10 @@ class PackPage(QWidget):
         )
 
     def _emit_request(self) -> None:
+        if self._short:
+            answer = QMessageBox.question(
+                self, "Pack a damaged dump?",
+                f"{self._damage_text()}\n\nPack it anyway?")
+            if answer != QMessageBox.StandardButton.Yes:
+                return
         self.pack_requested.emit(self.request())
