@@ -45,20 +45,6 @@ def nso() -> bytes:
     return b"NSO0" + bytes(0x3C) + BUILD_ID + bytes(0x20)
 
 
-PNG_BLUE = _png(64, 64, (40, 80, 220))
-
-
-def nacp(titles: dict[int, tuple[str, str]], display_version: str = "") -> bytes:
-    """A control.nacp: {language index: (name, publisher)} and a display version."""
-    data = bytearray(0x4000)
-    for index, (name, publisher) in titles.items():
-        data[index * 0x300:index * 0x300 + len(name.encode())] = name.encode()
-        start = index * 0x300 + 0x200
-        data[start:start + len(publisher.encode())] = publisher.encode()
-    data[0x3060:0x3060 + len(display_version)] = display_version.encode()
-    return bytes(data)
-
-
 def write(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)

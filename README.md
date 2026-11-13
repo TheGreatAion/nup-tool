@@ -26,10 +26,6 @@ Once it's open, you can also drop a dump folder or a `.nup` file onto the window
 - Shows which packages it found before you commit to anything
 - Sets compression level, title, publisher, display version, icon, title ID override, and
   localized titles and icons
-- Fills in the title, publisher, display version and icons from the game's control data
-  (`control.nacp` and its `icon_<Language>.dat` files) when the dump folder has it, in the newest
-  update, `base/`, or the folder itself, directly or in `control/`. **Load from control.nacp**
-  reads one from anywhere. Values you've typed are kept
 - Split mode: one file each for the base, every update, and the DLC
 - Shows progress with speed and time left. Cancel or failure leaves no partial files
 - Never overwrites an existing file

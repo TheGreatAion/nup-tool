@@ -5,16 +5,15 @@ from __future__ import annotations
 import os
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QFileDialog, QFormLayout, QFrame,
-                               QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-                               QMessageBox, QPushButton, QScrollArea, QSpinBox, QTableWidget,
-                               QTableWidgetItem, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QFormLayout, QFrame, QGroupBox,
+                               QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton,
+                               QScrollArea, QSpinBox, QTableWidget, QTableWidgetItem,
+                               QVBoxLayout, QWidget)
 
 from . import core
 from .widgets import IconField, LocalizedEditor, PathField, muted_label
 
 NUP_FILTER = "NUP containers (*.nup);;All files (*)"
-CONTROL_FILTER = "Control data (*.nacp);;All files (*)"
 
 
 class PackPage(QWidget):
@@ -26,10 +25,6 @@ class PackPage(QWidget):
         self._output_touched = False
         self._rows: list[core.PackageRow] = []
         self._source_error = ""
-        # What the last automatic fill put in each metadata field. A field that still
-        # holds that value (or nothing) may be refilled; anything else is the user's.
-        self._auto: dict[str, object] = {}
-        self._control_source: str | None = None
 
         self.source = PathField("dir", "Choose or drop a dump folder")
         self.source.changed.connect(self._source_changed)
@@ -76,12 +71,6 @@ class PackPage(QWidget):
         self.icon.changed.connect(self._validate)
         self.localized = LocalizedEditor()
         self.localized.changed.connect(self._validate)
-        self.load_control = QPushButton("Load from control.nacp…")
-        self.load_control.setToolTip("Fill in the title, publisher, display version and icons "
-                                     "from a game's control data.")
-        self.load_control.clicked.connect(self._pick_control)
-        self.control_note = muted_label()
-        self.control_note.hide()
         for edit in (self.name, self.publisher, self.display_version, self.title_id):
             edit.setAcceptDrops(False)
             edit.textChanged.connect(self._validate)
@@ -117,11 +106,6 @@ class PackPage(QWidget):
 
         meta_group = QGroupBox("Metadata (optional)")
         meta = QFormLayout(meta_group)
-        control_row = QHBoxLayout()
-        control_row.addWidget(self.load_control)
-        control_row.addStretch(1)
-        meta.addRow(control_row)
-        meta.addRow(self.control_note)
         meta.addRow("Title", self.name)
         meta.addRow("Publisher", self.publisher)
         meta.addRow("Display version", self.display_version)
@@ -180,77 +164,11 @@ class PackPage(QWidget):
             except core.JobError as exc:
                 self._source_error = str(exc)
         self._fill_table()
-        self._update_control(source)
         if source and not self._output_touched:
             clean = os.path.normpath(source)
             parent, name = os.path.split(clean)
             self.output.setText(os.path.join(parent, f"{name or 'game'}.nup"))
         self._validate()
-
-    def _update_control(self, source: str) -> None:
-        """Fill in metadata from control data the dump tool saved, once per dump folder."""
-        if source == self._control_source:
-            return
-        self._control_source = source
-        data, note = None, ""
-        if source and any(row.kind == "base" for row in self._rows):
-            path = core.find_control(source)
-            if path:
-                try:
-                    data = core.read_control(path)
-                    note = f"Filled in from {os.path.relpath(path, source)} in the dump."
-                except core.JobError as exc:
-                    note = f"Found control data in the dump but couldn't use it. {exc}"
-        self._apply_control(data, replace_all=False)
-        self._set_control_note(note)
-
-    def _pick_control(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "Choose control data", self.source.text(),
-                                              CONTROL_FILTER)
-        if not path:
-            return
-        try:
-            data = core.read_control(path)
-        except core.JobError as exc:
-            QMessageBox.critical(self, "Couldn't load control data", str(exc))
-            return
-        self._apply_control(data, replace_all=True)
-        self._set_control_note(f"Filled in from {os.path.normpath(path)}.")
-
-    def _apply_control(self, data: core.ControlData | None, replace_all: bool) -> None:
-        """Put control data in the metadata fields. With replace_all every field takes the
-        new value; otherwise only fields that are empty or still hold the last automatic
-        fill do, so nothing the user typed or chose is lost. None empties those fields."""
-        langs = [lang for _, lang in core.NACP_LANGUAGES
-                 if data and (lang in data.titles or lang in data.icons)]
-        values: dict[str, object] = {
-            "name": data.name if data else "",
-            "publisher": data.publisher if data else "",
-            "display_version": data.display_version if data else "",
-            "icon": data.icon if data else "",
-            "localized": [(lang, data.titles.get(lang, ""), data.icons.get(lang, ""))
-                          for lang in langs] if data else [],
-        }
-        for key, edit in (("name", self.name), ("publisher", self.publisher),
-                          ("display_version", self.display_version)):
-            if replace_all or edit.text().strip() in ("", self._auto.get(key, "")):
-                edit.setText(str(values[key]))
-        if replace_all or self.icon.path() in ("", self._auto.get("icon", "")):
-            if values["icon"]:
-                self.icon.set_path(str(values["icon"]))
-            elif self.icon.path():
-                self.icon.clear()
-        current = self.localized.snapshot()
-        if replace_all or not current or current == self._auto.get("localized"):
-            self.localized.clear_rows()
-            for lang, title, icon in values["localized"]:
-                self.localized.add_row(lang, title, icon_path=icon)
-        # A file the user picked counts as their own input from here on.
-        self._auto = {} if replace_all else values
-
-    def _set_control_note(self, text: str) -> None:
-        self.control_note.setText(text)
-        self.control_note.setVisible(bool(text))
 
     def _fill_table(self) -> None:
         self.table.setRowCount(len(self._rows))

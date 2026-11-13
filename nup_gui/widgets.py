@@ -180,8 +180,7 @@ class LocalizedEditor(QWidget):
             if item is not None and item.widget() is not None:
                 item.widget().setVisible(visible)
 
-    def add_row(self, lang: str = "", title: str = "", icon: bytes | None = None,
-                icon_path: str = "") -> None:
+    def add_row(self, lang: str = "", title: str = "", icon: bytes | None = None) -> None:
         lang_edit = QLineEdit(lang)
         lang_edit.setPlaceholderText("ja")
         lang_edit.setFixedWidth(90)
@@ -189,8 +188,6 @@ class LocalizedEditor(QWidget):
         title_edit = QLineEdit(title)
         title_edit.setAcceptDrops(False)
         icon_field = IconField(icon, thumb=32)
-        if icon_path:
-            icon_field.set_path(icon_path)
         remove = QPushButton("✕")
         remove.setFixedWidth(32)
         remove.setToolTip("Remove this language")
@@ -212,14 +209,6 @@ class LocalizedEditor(QWidget):
             widget.deleteLater()
         self._header_visible(bool(self._rows))
         self.changed.emit()
-
-    def clear_rows(self) -> None:
-        for row in list(self._rows):
-            self._remove_row(row)
-
-    def snapshot(self) -> list[tuple[str, str, str]]:
-        """Language, title and chosen icon path of every row, for comparing."""
-        return [(lang, title, icon.path()) for lang, title, icon in self.entries()]
 
     def entries(self) -> list[tuple[str, str, IconField]]:
         return [(lang.text().strip().lower(), title.text().strip(), icon)
