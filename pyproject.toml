@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nup-tool"
+version = "0.1.0"
+description = "Desktop GUI for the NUP (NX Package) container format"
+readme = "README.md"
+# 3.15 is excluded for now: zstandard has no prebuilt wheel for it yet, and it is needed
+# to read and write compressed containers.
+requires-python = ">=3.10,<3.15"
+dependencies = [
+    "PySide6-Essentials>=6.8",
+    "zstandard>=0.22",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pyinstaller>=6.10"]
+
+[project.gui-scripts]
+nup-tool = "nup_gui.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["nup", "nup_gui"]
+
+[tool.setuptools.package-data]
+nup = ["py.typed", "LICENSE", "UPSTREAM.md"]
+nup_gui = ["assets/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

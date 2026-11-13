@@ -1,0 +1,24 @@
+nup tool bundles the following third-party software. Each remains under its own license.
+
+nup
+  The NUP reference implementation, with local fixes listed in nup/UPSTREAM.md.
+  https://github.com/a55uka/nup
+  License: MIT. See licenses/nup/LICENSE.
+
+Qt 6 and PySide6
+  The user interface toolkit and its Python bindings, by The Qt Company.
+  https://www.qt.io/  and  https://wiki.qt.io/Qt_for_Python
+  Source code: https://download.qt.io/official_releases/QtForPython/
+  License: LGPL-3.0. See lgpl-3.0.txt and gpl-3.0.txt.
+  These are unmodified libraries, shipped as separate DLLs in the _internal folder, and
+  can be replaced with other compatible builds.
+
+python-zstandard
+  Zstandard compression bindings, including the zstd library.
+  https://github.com/indygreg/python-zstandard
+  License: BSD-3-Clause. See zstandard-LICENSE.txt.
+
+Python
+  The Python runtime and standard library.
+  https://www.python.org/
+  License: PSF-2.0, with the other licenses it lists. See python-LICENSE.txt.
