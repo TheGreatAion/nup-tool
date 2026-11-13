@@ -3,7 +3,8 @@
 
 a = Analysis(
     ["launcher.py"],
-    datas=[("nup_gui/assets", "assets"), ("licenses", "licenses"), ("nup/LICENSE", "licenses/nup")],
+    datas=[("nup_gui/assets", "assets"), ("licenses", "licenses"), ("nup/LICENSE", "licenses/nup"),
+           ("LICENSE", "licenses/nup-tool")],
     hiddenimports=["zstandard.backend_c"],
     excludes=["tkinter", "unittest", "pydoc", "pytest"],
 )

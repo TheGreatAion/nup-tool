@@ -114,6 +114,6 @@ The version comes from `nup_gui/__init__.py`. `nup_tool.spec` is the PyInstaller
 
 ## License
 
-The vendored `nup` library is MIT licensed by its authors (`nup/LICENSE`). The other bundled
-components and their licenses are listed in `licenses/THIRD-PARTY-NOTICES.txt`, which ships with
-the app. This repository doesn't yet state a license for the GUI code.
+nup tool is MIT licensed (`LICENSE`). The vendored `nup` library is MIT licensed by its authors
+(`nup/LICENSE`). The other bundled components and their licenses are listed in
+`licenses/THIRD-PARTY-NOTICES.txt`, which ships with the app.
